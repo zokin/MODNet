@@ -20,7 +20,8 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from . import modnet_onnx
+# from . import modnet_onnx
+from onnx_modenet import MODNet
 
 
 if __name__ == '__main__':
@@ -36,7 +37,8 @@ if __name__ == '__main__':
         exit()
 
     # define model & load checkpoint
-    modnet = modnet_onnx.MODNet(backbone_pretrained=False)
+    # modnet = modnet_onnx.MODNet(backbone_pretrained=False)
+    modnet = MODNet(backbone_pretrained=False)
     modnet = nn.DataParallel(modnet).cuda()
     state_dict = torch.load(args.ckpt_path)
     modnet.load_state_dict(state_dict)
