@@ -92,6 +92,7 @@ if __name__ == '__main__':
     bbox_scale_factor = 1.1
     os.makedirs(args.out_path, exist_ok=True)    
     filenames = glob.glob(args.img_glob)
+    session = onnxruntime.InferenceSession(args.model, None) # Initialize session and get prediction
     for filename in tqdm.tqdm(filenames, desc='Matting'):
         name, ext = os.path.splitext(os.path.basename(filename))
         img = cv2.imread(filename)
@@ -104,6 +105,7 @@ if __name__ == '__main__':
             im = im[:, :, 0:3]        
         im = (im - 127.5) / 127.5   # normalize values to scale it between -1 to 1
         H, W = im.shape[:2]
+        out_filename = os.path.join(args.out_path, f"{name}_silhouette{ext}")
         if use_keypoints:
             kpts_filename = os.path.join(args.kpts_path, f"{name}_keypoints.json")
             data = _read_keypoints(kpts_filename)
@@ -114,6 +116,13 @@ if __name__ == '__main__':
                 max_x = keypoints[..., 0].max()
                 max_y = keypoints[..., 1].max()
                 return (max_x - min_x) * (max_y - min_y) * keypoints[..., 2].sum()
+            if not len(keypoints):
+                matte = np.zeros_like(cv2.resize(matte, dsize=(im_w, im_h), interpolation=cv2.INTER_AREA))
+                cv2.imwrite(out_filename, matte)
+                cv2.imwrite(out_filename.replace('silhouette', 'background'), matte)
+                cv2.imwrite(out_filename.replace('silhouette', 'foreground'), matte)
+                print(f"{name} without keypoints !")
+                continue
             keypoints = [max(keypoints, key=_get_area)]
             keypoints = torch.stack(keypoints, dim=0).squeeze()
             x, y = keypoints[:25, :2].split(1, dim=1)
@@ -141,7 +150,6 @@ if __name__ == '__main__':
         im = np.transpose(im)
         im = np.swapaxes(im, 1, 2)
         im = np.expand_dims(im, axis = 0).astype('float32')        
-        session = onnxruntime.InferenceSession(args.model, None) # Initialize session and get prediction
         input_name = session.get_inputs()[0].name
         output_name = session.get_outputs()[0].name
         result = session.run([output_name], {input_name: im})        
@@ -154,10 +162,16 @@ if __name__ == '__main__':
             zeros[bbox[1]:bbox[3], bbox[0]:bbox[2]] = matte
             matte = (zeros > 0.5).astype(np.uint8) * 255
             count, labels, stats, centroids = cv2.connectedComponentsWithStats(matte)
+            if len(stats) <= 1:
+                matte = np.zeros_like(cv2.resize(matte, dsize=(im_w, im_h), interpolation=cv2.INTER_AREA))
+                cv2.imwrite(out_filename, matte)
+                cv2.imwrite(out_filename.replace('silhouette', 'background'), matte)
+                cv2.imwrite(out_filename.replace('silhouette', 'foreground'), matte)
+                print(f"{name} without foreground !")
+                continue
             max_area_label, max_area = max(toolz.drop(1, enumerate(stats)), key=lambda t: t[1][-1])
             matte[labels != max_area_label] = 0
             matte[labels == max_area_label] = 255
-        out_filename = os.path.join(args.out_path, f"{name}_silhouette{ext}")
         cv2.imwrite(out_filename, matte)
         if args.split:
             background = img.copy()
