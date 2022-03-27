@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--img_glob', type=str, help='wildchar path of the input images')
     parser.add_argument('--out_path', type=str, help='path for saving the predicted alpha matte (a file)')
-    parser.add_argument('--kpts_path', type=str, help='path for saving the predicted alpha matte (a file)')
+    parser.add_argument('--kpts_path', type=str, help='path to the corresponding keypoint *.json files')
     parser.add_argument('--model', type=str, help='path of the ONNX model')
     parser.add_argument('--rotate', action='store_true', help='Rotate the image 90 degrees clockwise')
     parser.add_argument('--split', action='store_true', help='Rotate the image 90 degrees clockwise')
